@@ -41,6 +41,8 @@ python scripts/transcribe.py <ep> <url...>          # yt-dlp + faster-whisper
 python scripts/stock.py search gamer party --out stock_preview   # pessoas reais (Mixkit)
 python scripts/stock.py get <ep> stock_preview 3 42
 python scripts/fetch_clip.py <ep> <URL> 1:12-1:19 --name trailer2  # trecho do YouTube (PC)
+python scripts/clipper.py prep "<URL>" --out clips/<slug> [--live-last 30]  # cortes YouTube/live
+python scripts/clipper.py cut clips/<slug> [--layout split]
 python scripts/tts.py <ep> [--only 3 5]              # edge-tts (cache: só regrava cenas alteradas)
 python scripts/render.py <ep> [--preview]            # ffmpeg
 python scripts/thumbnail.py <img> "TEXT" -o <ep>/out/thumb.png
@@ -50,4 +52,7 @@ python scripts/shorts.py <ep> 70-112 200-245 --hook "TEXT" --hook "TEXT"
 ## Voz e estilo
 - Voz padrão: `en-US-AndrewNeural`, rate `+4%`. Alternativas: `en-US-GuyNeural`, `en-US-BrianNeural`.
 - Tom: documentário misterioso/empolgado, frases curtas, 2ª pessoa ("you"), sem enrolação.
+- Render dinâmico (padrão): legenda karaokê, flash na troca de cena, zoom lento nos clipes.
+  Desligar no scenes.json: "captions": "plain", "transition": "none", "video_zoom": false.
+- Cortes de vídeo/live: skills `cortes-youtube` e `cortes-live` (só conteúdo próprio, com programa de cortes ou permissão).
 - Vídeo longo: 8–12 min (~1.300–1.900 palavras a ~155 wpm).

@@ -11,13 +11,22 @@ dividido igualmente entre elas -> troca de imagem a cada poucos segundos
 Uso:
   python scripts/render.py episodes/<slug>
   python scripts/render.py episodes/<slug> --preview      # 480p rápido p/ conferir
+
+Opções no scenes.json (todas opcionais):
+  "captions": "karaoke" | "plain"     (karaoke = palavra falada destacada, padrão)
+  "transition": "flash" | "none"      (flash branco curto na troca de cena, padrão)
+  "video_zoom": true | false          (zoom lento nos clipes de vídeo, padrão true)
+Segmentos ficam em cache (build/cache): mudar só texto/legenda re-renderiza rápido.
 """
 import argparse
+import hashlib
 import json
-import re
-import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import captions as C  # noqa: E402
 
 FPS = 30
 GAP = 0.25  # respiro entre cenas (s)
@@ -52,94 +61,54 @@ def zoompan(motion: str, n: int, w: int, h: int) -> str:
             f"zoompan=z='{z}':x='{x}':y='{y}':d={n}:s={w}x{h}:fps={FPS},setsar=1")
 
 
-def render_segment(src: Path, frames: int, out: Path, w: int, h: int, motion: str, clip_start: float, crf: str):
+def render_segment(src: Path, frames: int, out: Path, w: int, h: int, motion: str, clip_start: float, crf: str,
+                   flash: bool = False, video_zoom: bool = True):
     enc = ["-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", crf, "-pix_fmt", "yuv420p",
            "-frames:v", str(frames), str(out)]
     dur = frames / FPS
+    fx = ",fade=t=in:st=0:d=0.12:color=white" if flash else ""
+    cover = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps={FPS},setsar=1"
     if not src.exists():
         print(f"  ! mídia não encontrada: {src} (usando tela escura)")
         run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=0x111111:s={w}x{h}:r={FPS}", "-t", f"{dur}", *enc])
     elif src.suffix.lower() in IMG_EXT:
         if motion == "none":
-            vf = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps={FPS},setsar=1"
-            run(["ffmpeg", "-y", "-loop", "1", "-i", str(src), "-vf", vf, *enc])
+            run(["ffmpeg", "-y", "-loop", "1", "-i", str(src), "-vf", cover + fx, *enc])
         else:
-            run(["ffmpeg", "-y", "-i", str(src), "-vf", zoompan(motion, frames, w, h), *enc])
+            run(["ffmpeg", "-y", "-i", str(src), "-vf", zoompan(motion, frames, w, h) + fx, *enc])
     else:
-        vf = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps={FPS},setsar=1"
+        vf = cover
+        if video_zoom:  # zoom lento (punch-in) também nos clipes de vídeo
+            vf += (f",zoompan=z='min(1+0.10*on/{max(frames, 1)},1.10)':d=1:"
+                   f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}:fps={FPS},setsar=1")
         run(["ffmpeg", "-y", "-stream_loop", "-1", "-ss", f"{clip_start}", "-i", str(src),
-             "-t", f"{dur + 1}", "-vf", vf, *enc])
+             "-t", f"{dur + 1}", "-vf", vf + fx, *enc])
 
 
-# ---------- legendas ----------
-def _norm(s):
-    return re.sub(r"[^a-z0-9]", "", s.lower())
-
-
-def restore_punctuation(words, text):
-    """O edge-tts devolve palavras sem pontuação: alinha com o texto do roteiro
-    para recuperar vírgulas/pontos (e quebrar a legenda no fim da frase)."""
-    tokens, j = text.split(), 0
-    out = []
-    for wd in words:
-        w = dict(wd)
-        nw = _norm(w["w"])
-        for k in range(j, min(j + 4, len(tokens))):
-            if _norm(tokens[k]) == nw and nw:
-                w["w"], j = tokens[k], k + 1
-                break
-        out.append(w)
+def cached_segment(cache: Path, src: Path, *args, **kw) -> Path:
+    """Reaproveita o segmento se mídia e parâmetros não mudaram."""
+    mt = src.stat().st_mtime if src.exists() else 0
+    key = hashlib.sha1(json.dumps([str(src), mt, args, kw], sort_keys=True).encode()).hexdigest()[:16]
+    out = cache / f"{key}.mp4"
+    if not out.exists():
+        render_segment(src, args[0], out, *args[1:], **kw)
     return out
 
 
-def group_words(words, max_words=5, max_len=2.4):
-    cues, cur = [], []
-    for wd in words:
-        cur.append(wd)
-        end_sentence = re.search(r"[.!?]$", wd["w"]) or (re.search(r"[,;:]$", wd["w"]) and len(cur) >= 2)
-        if len(cur) >= max_words or end_sentence or cur[-1]["end"] - cur[0]["start"] > max_len:
-            cues.append(cur)
-            cur = []
-    if cur:
-        cues.append(cur)
-    return [(c[0]["start"], c[-1]["end"], " ".join(x["w"] for x in c)) for c in cues]
-
-
-def ts_srt(t):
-    ms = int(round(t * 1000))
-    return f"{ms//3600000:02d}:{ms//60000%60:02d}:{ms//1000%60:02d},{ms%1000:03d}"
-
-
-def ts_ass(t):
-    cs = int(round(t * 100))
-    return f"{cs//360000}:{cs//6000%60:02d}:{cs//100%60:02d}.{cs%100:02d}"
-
-
-def write_subs(cues, lower_thirds, w, h, ass_path: Path, srt_path: Path):
+# ---------- legendas ----------
+def write_subs(groups_with_offset, lower_thirds, w, h, ass_path: Path, srt_path: Path, mode="karaoke"):
     fs = int(h * 0.065)
-    head = f"""[Script Info]
-ScriptType: v4.00+
-PlayResX: {w}
-PlayResY: {h}
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Cap,DejaVu Sans,{fs},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,{max(2, fs//12)},2,2,60,60,{int(h*0.08)},1
-Style: Src,DejaVu Sans,{int(h*0.028)},&H00FFFFFF,&H000000FF,&H00000000,&HA0000000,0,0,0,0,100,100,0,0,3,4,0,7,40,40,40,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
-    lines = [head]
-    srt = []
-    for i, (s, e, t) in enumerate(cues, 1):
-        txt = t.upper().replace("{", "(").replace("}", ")")
-        lines.append(f"Dialogue: 0,{ts_ass(s)},{ts_ass(e)},Cap,,0,0,0,,{txt}\n")
-        srt.append(f"{i}\n{ts_srt(s)} --> {ts_srt(e)}\n{t}\n")
+    lines = [C.ass_header(w, h, [C.style("Cap", fs, 2, int(h * 0.08)),
+                                 C.style("Src", int(h * 0.028), 7, 40, border=3, outline=4, bold=0,
+                                         back="&HA0000000")])]
+    srt_groups = []
+    for g, off in groups_with_offset:
+        lines += (C.karaoke_events if mode == "karaoke" else C.plain_events)([g], off)
+        srt_groups.append([{**x, "start": x["start"] + off, "end": x["end"] + off} for x in g])
     for s, e, t in lower_thirds:
-        lines.append(f"Dialogue: 1,{ts_ass(s)},{ts_ass(e)},Src,,0,0,0,,{t}\n")
+        lines.append(f"Dialogue: 1,{C.ts_ass(s)},{C.ts_ass(e)},Src,,0,0,0,,{t}\n")
     ass_path.write_text("".join(lines))
-    srt_path.write_text("\n".join(srt))
+    srt_path.write_text(C.srt_from_groups(srt_groups))
 
 
 def main():
@@ -156,8 +125,10 @@ def main():
     crf = "28" if a.preview else "20"
 
     work = ep / "build"
-    shutil.rmtree(work, ignore_errors=True)
-    work.mkdir()
+    cache = work / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    flash_on = cfg.get("transition", "flash") == "flash"
+    vzoom = cfg.get("video_zoom", True)
     (ep / "out").mkdir(exist_ok=True)
 
     seg_list, cues, lowers, narr_inputs = [], [], [], []
@@ -178,15 +149,16 @@ def main():
             frames = end_f - start_f
             seg_i += 1
             motion = scene.get("motion") or MOTIONS[seg_i % len(MOTIONS)]
-            seg = work / f"seg_{seg_i:04d}.mp4"
             src = resolve(ep, m) if m else Path("/nonexistent")
-            render_segment(src, frames, seg, w, h, motion, float(scene.get("clip_start", 0)), crf)
+            seg = cached_segment(cache, src, frames, w, h, motion, float(scene.get("clip_start", 0)), crf,
+                                 flash=flash_on and j == 0 and i > 1, video_zoom=vzoom)
             seg_list.append(seg)
             start_f = end_f
         total_frames = scene_end_frame
 
-        for s, e, t in group_words(restore_punctuation(info["words"], scene["text"])):
-            cues.append((t0 + s, t0 + e, t))
+        for g in C.group_words(C.restore_punctuation(info["words"], scene["text"]),
+                               max_words=4 if cfg.get("captions", "karaoke") == "karaoke" else 5):
+            cues.append((g, t0))
         if scene.get("lower_third"):
             lowers.append((t0, t0 + min(dur, 5), scene["lower_third"]))
         narr_inputs.append((ep / "audio" / info["file"], dur))
@@ -210,7 +182,7 @@ def main():
 
     # 3) legendas
     ass, srt = work / "subs.ass", ep / "out" / "captions.srt"
-    write_subs(cues, lowers, w, h, ass, srt)
+    write_subs(cues, lowers, w, h, ass, srt, cfg.get("captions", "karaoke"))
 
     # 4) mix final: música com ducking + legendas queimadas
     out = ep / "out" / ("preview.mp4" if a.preview else "video.mp4")

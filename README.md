@@ -13,6 +13,7 @@ pauta, roteiro, cenas e SEO usando **skills**. Voz, transcrição, edição, thu
 | Voz neural grátis | [edge-tts](https://github.com/rany2/edge-tts) | vozes neurais da Microsoft, com marcação de tempo por palavra |
 | Edição / render | [FFmpeg](https://ffmpeg.org) | Ken Burns, legendas (libass), ducking, loudnorm |
 | Vídeos com pessoas reais | [Mixkit](https://mixkit.co) | banco grátis, licença libera uso monetizado |
+| Detecção de rosto (cortes) | [OpenCV YuNet](https://github.com/opencv/opencv_zoo) | rede neural leve, pega perfil e luz colorida |
 | Thumbnail | [Pillow](https://github.com/python-pillow/Pillow) | |
 | Voz offline (opcional) | [Kokoro-82M](https://github.com/hexgrad/kokoro) | open source, qualidade top, sem internet |
 
@@ -40,6 +41,23 @@ pip install -r requirements.txt
 
 Coloque uma música de fundo em `assets/music/bg.mp3` (use a Biblioteca de áudio do YouTube, que é grátis e sem copyright).
 
+## Cortes de vídeos e lives do YouTube
+
+```bash
+python scripts/clipper.py prep "https://youtu.be/ID" --out clips/meu-video               # vídeo/VOD
+python scripts/clipper.py prep "https://youtube.com/live/ID" --live-last 30 --out clips/live  # live ao vivo (últimos 30 min)
+```
+
+Depois, no Claude Code, rode `/cortes-youtube clips/meu-video` ou `/cortes-live clips/live`. O Claude lê a transcrição
+e os picos de empolgação, escolhe os momentos e roda `clipper.py cut`. Cada corte sai em 1080x1920 com:
+- layout `split` (câmera do streamer em cima, jogo embaixo), `face` (segue o rosto) ou `fit` (fundo desfocado);
+- legenda karaokê (a palavra falada fica destacada);
+- gancho no topo, crédito do canal e áudio normalizado.
+
+O rosto é detectado com [YuNet](https://huggingface.co/opencv/face_detection_yunet) (OpenCV, MIT), que já vem em `assets/models/`.
+
+Só corte vídeos seus, de criadores que liberam cortes ou com permissão.
+
 ## Uso no Claude Code
 
 ```bash
@@ -48,6 +66,7 @@ claude
 
 Depois, no chat:
 
+- `/cortes-youtube` e `/cortes-live` fazem cortes verticais de vídeos e lives.
 - `/video-completo` faz um vídeo inteiro, parando só quando precisa de você.
 - Também dá para chamar cada etapa: `/gta6-pauta`, `/fonte-para-roteiro`, `/gta6-roteiro`, `/plano-de-edicao`,
   `/narracao`, `/gta6-render`, `/titulo-thumb-seo`, `/gta6-shorts`, `/checklist-publicacao`.

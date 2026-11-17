@@ -13,3 +13,8 @@ description: Renderiza o vídeo final (FFmpeg) com Ken Burns, legendas queimadas
 
 Ajustes comuns: música alta/baixa → `music_volume` no scenes.json; trocar imagem → substitua o arquivo e re-renderize.
 Não leia arquivos de `build/`. Erros do ffmpeg aparecem resumidos no output.
+
+Estilo dinâmico (padrão): legenda karaokê (palavra falada em amarelo), flash branco na troca de cena e zoom lento em
+clipes de vídeo. Ajuste no scenes.json: `"captions": "plain"`, `"transition": "none"`, `"video_zoom": false`.
+Segmentos ficam em cache (`build/cache`): trocar só o texto ou a legenda re-renderiza rápido.
+
