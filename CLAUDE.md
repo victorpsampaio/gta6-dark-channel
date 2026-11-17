@@ -35,9 +35,10 @@ episodes/AAAA-MM-DD-slug/
 
 ## Comandos
 ```
+python scripts/trending.py "GTA 6"                   # o que está em alta (yt-dlp)
 ./scripts/new_episode.sh <slug>
 python scripts/transcribe.py <ep> <url...>          # yt-dlp + faster-whisper
-python scripts/tts.py <ep> [--only 3 5]              # edge-tts
+python scripts/tts.py <ep> [--only 3 5]              # edge-tts (cache: só regrava cenas alteradas)
 python scripts/render.py <ep> [--preview]            # ffmpeg
 python scripts/thumbnail.py <img> "TEXT" -o <ep>/out/thumb.png
 python scripts/shorts.py <ep> 70-112 200-245 --hook "TEXT" --hook "TEXT"

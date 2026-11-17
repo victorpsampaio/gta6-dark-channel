@@ -76,27 +76,34 @@ async def main():
     man_path = audio_dir / "manifest.json"
     manifest = json.loads(man_path.read_text()) if man_path.exists() else {}
 
-    for i, scene in enumerate(cfg["scenes"], 1):
-        key = f"scene_{i:02d}"
-        if a.only and i not in a.only and key in manifest:
-            continue
-        out = audio_dir / f"{key}.mp3"
-        for attempt in range(1, 5):  # o serviço às vezes falha de forma intermitente
-            try:
-                words = await synth(scene["text"], voice, rate, pitch, out)
-                break
-            except (edge_tts.exceptions.NoAudioReceived, edge_tts.exceptions.WebSocketError, OSError) as e:
-                if attempt == 4:
-                    raise
-                print(f"[tts] {key}: {type(e).__name__}, tentando de novo ({attempt}/3)...")
-                await asyncio.sleep(2 * attempt)
-        manifest[key] = {"file": out.name, "duration": probe_duration(out), "words": words}
-        print(f"[tts] {key}  {manifest[key]['duration']:.1f}s  {scene['text'][:60]}...")
-
     # remove cenas que não existem mais
     for k in list(manifest):
         if int(k.split("_")[1]) > len(cfg["scenes"]):
             del manifest[k]
+
+    for i, scene in enumerate(cfg["scenes"], 1):
+        key = f"scene_{i:02d}"
+        out = audio_dir / f"{key}.mp3"
+        sig = f"{voice}|{rate}|{pitch}|{scene['text']}"
+        old = manifest.get(key)
+        if old and out.exists() and (old.get("sig") == sig or (a.only and i not in a.only)):
+            continue  # cache: texto/voz iguais -> reaproveita
+        if a.only and i not in a.only and old:
+            continue
+        for attempt in range(1, 6):  # o serviço às vezes falha ou trava
+            try:
+                words = await asyncio.wait_for(synth(scene["text"], voice, rate, pitch, out), timeout=60)
+                break
+            except (edge_tts.exceptions.NoAudioReceived, edge_tts.exceptions.WebSocketError,
+                    OSError, asyncio.TimeoutError) as e:
+                if attempt == 5:
+                    raise SystemExit(f"[tts] {key} falhou 5x ({type(e).__name__}). Rode de novo: retoma daqui.")
+                print(f"[tts] {key}: {type(e).__name__}, tentando de novo ({attempt}/4)...")
+                await asyncio.sleep(2 * attempt)
+        manifest[key] = {"file": out.name, "duration": probe_duration(out), "words": words, "sig": sig}
+        man_path.write_text(json.dumps(manifest, indent=1))  # salva progresso a cada cena
+        print(f"[tts] {key}  {manifest[key]['duration']:.1f}s  {scene['text'][:60]}...", flush=True)
+
     man_path.write_text(json.dumps(manifest, indent=1))
     total = sum(m["duration"] for m in manifest.values())
     print(f"[tts] ok — {len(manifest)} cenas, {total/60:.1f} min de narração")

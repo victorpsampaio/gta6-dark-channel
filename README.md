@@ -62,6 +62,7 @@ pauta → transcribe.py (vídeos gringos = só pesquisa) → brief.md (fatos + �
 ## Scripts (também funcionam sem o Claude)
 
 ```bash
+python scripts/trending.py "GTA 6"                 # vídeos gringos em alta agora (recentes x views)
 ./scripts/new_episode.sh gta6-map-size
 python scripts/transcribe.py episodes/2026-11-17-gta6-map-size "https://youtube.com/watch?v=..."
 python scripts/tts.py episodes/2026-11-17-gta6-map-size
