@@ -1,0 +1,6 @@
+edge-tts>=7.0
+faster-whisper>=1.1
+yt-dlp>=2025.1.1
+pillow>=10.0
+# opcional, voz local offline de alta qualidade (precisa de torch):
+# kokoro>=0.9

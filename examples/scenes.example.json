@@ -1,0 +1,5 @@
+{"title":"test","voice":"en-US-AndrewNeural","rate":"+4%","music":"assets/music/bg.mp3","music_volume":0.18,
+"scenes":[
+{"text":"GTA 6 is finally here, and the map is bigger than anyone expected.","media":["media/01.jpg","media/02.jpg"],"lower_third":"Source: Rockstar Games"},
+{"text":"But there is one detail almost nobody noticed in the second trailer.","media":"media/clip.mp4","clip_start":1}
+]}
