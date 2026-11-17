@@ -38,6 +38,9 @@ episodes/AAAA-MM-DD-slug/
 python scripts/trending.py "GTA 6"                   # o que está em alta (yt-dlp)
 ./scripts/new_episode.sh <slug>
 python scripts/transcribe.py <ep> <url...>          # yt-dlp + faster-whisper
+python scripts/stock.py search gamer party --out stock_preview   # pessoas reais (Mixkit)
+python scripts/stock.py get <ep> stock_preview 3 42
+python scripts/fetch_clip.py <ep> <URL> 1:12-1:19 --name trailer2  # trecho do YouTube (PC)
 python scripts/tts.py <ep> [--only 3 5]              # edge-tts (cache: só regrava cenas alteradas)
 python scripts/render.py <ep> [--preview]            # ffmpeg
 python scripts/thumbnail.py <img> "TEXT" -o <ep>/out/thumb.png

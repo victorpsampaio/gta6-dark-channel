@@ -27,3 +27,13 @@ Depois escreva `$EP/media/SHOTLIST.md`: tabela `arquivo | o que mostrar | onde c
 (ex.: "Trailer 2 oficial 1:12 — yt-dlp do canal Rockstar Games", "screenshot oficial rockstargames.com/VI",
 "gerar no Bing Image Creator: prompt ..."). Para clipes de trailer oficial, dê o comando:
 `yt-dlp -f "bv*[height<=1080]+ba/b" --download-sections "*72-80" -o "$EP/media/05a.%(ext)s" <URL oficial>`.
+
+### Vídeo, não só imagem (retenção)
+Misture em cada cena: imagem oficial do jogo + clipe com **pessoas reais**. Meta: ≥40% das mídias em vídeo.
+- Pessoas reais (licença livre): `python scripts/stock.py search gamer "friends playing" party miami --out stock_preview`,
+  olhe as folhas `stock_preview/sheet_*.jpg` e baixe: `python scripts/stock.py get $EP stock_preview 3 42 84`.
+  Em cenas com depoimento (ex.: "Malcolm, de Oregon"), o clipe é ilustrativo: lower_third "… · Stock footage: Mixkit".
+- Trailer oficial e trechos de outros canais (só no PC do usuário):
+  `python scripts/fetch_clip.py $EP <URL> 1:12-1:19 --name trailer2` (corta em 8s, sem áudio, grava crédito em media/CREDITS.txt).
+  Trechos de terceiros: curtos, com narração por cima, `lower_third: "Footage: <canal>"`.
+

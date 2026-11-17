@@ -12,6 +12,7 @@ pauta, roteiro, cenas e SEO usando **skills**. Voz, transcrição, edição, thu
 | Transcrição local | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) | Whisper da OpenAI até 4x mais rápido, roda em CPU |
 | Voz neural grátis | [edge-tts](https://github.com/rany2/edge-tts) | vozes neurais da Microsoft, com marcação de tempo por palavra |
 | Edição / render | [FFmpeg](https://ffmpeg.org) | Ken Burns, legendas (libass), ducking, loudnorm |
+| Vídeos com pessoas reais | [Mixkit](https://mixkit.co) | banco grátis, licença libera uso monetizado |
 | Thumbnail | [Pillow](https://github.com/python-pillow/Pillow) | |
 | Voz offline (opcional) | [Kokoro-82M](https://github.com/hexgrad/kokoro) | open source, qualidade top, sem internet |
 
@@ -64,6 +65,9 @@ pauta → transcribe.py (vídeos gringos = só pesquisa) → brief.md (fatos + �
 ```bash
 python scripts/trending.py "GTA 6"                 # vídeos gringos em alta agora (recentes x views)
 ./scripts/new_episode.sh gta6-map-size
+python scripts/stock.py search gamer party miami --out stock_preview   # vídeos grátis com pessoas reais
+python scripts/stock.py get episodes/... stock_preview 3 42 84
+python scripts/fetch_clip.py episodes/... "https://youtube.com/watch?v=..." 1:12-1:19 --name trailer2
 python scripts/transcribe.py episodes/2026-11-17-gta6-map-size "https://youtube.com/watch?v=..."
 python scripts/tts.py episodes/2026-11-17-gta6-map-size
 python scripts/render.py episodes/2026-11-17-gta6-map-size --preview
