@@ -81,7 +81,15 @@ async def main():
         if a.only and i not in a.only and key in manifest:
             continue
         out = audio_dir / f"{key}.mp3"
-        words = await synth(scene["text"], voice, rate, pitch, out)
+        for attempt in range(1, 5):  # o serviço às vezes falha de forma intermitente
+            try:
+                words = await synth(scene["text"], voice, rate, pitch, out)
+                break
+            except (edge_tts.exceptions.NoAudioReceived, edge_tts.exceptions.WebSocketError, OSError) as e:
+                if attempt == 4:
+                    raise
+                print(f"[tts] {key}: {type(e).__name__}, tentando de novo ({attempt}/3)...")
+                await asyncio.sleep(2 * attempt)
         manifest[key] = {"file": out.name, "duration": probe_duration(out), "words": words}
         print(f"[tts] {key}  {manifest[key]['duration']:.1f}s  {scene['text'][:60]}...")
 

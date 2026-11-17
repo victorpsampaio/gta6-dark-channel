@@ -24,6 +24,14 @@ def fmt(t):
     return f"{int(t//3600):02d}:{int(t//60%60):02d}:{int(t%60):02d}"
 
 
+def load_audio(path: Path):
+    """Decodifica com o FFmpeg (16 kHz mono) -> evita bugs de versão do PyAV."""
+    import numpy as np
+    raw = subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-i", str(path), "-f", "s16le",
+                          "-ac", "1", "-ar", "16000", "-"], capture_output=True, check=True).stdout
+    return np.frombuffer(raw, np.int16).astype(np.float32) / 32768.0
+
+
 def fetch_audio(url: str, dest: Path) -> tuple[Path, dict]:
     dest.mkdir(parents=True, exist_ok=True)
     info = json.loads(subprocess.run(
@@ -60,7 +68,7 @@ def main():
             audio, meta = fetch_audio(inp, src_dir)
             out = audio.parent
         print(f"[whisper] transcrevendo {meta.get('title')} ...", file=sys.stderr)
-        segments, _ = model.transcribe(str(audio), vad_filter=True)
+        segments, _ = model.transcribe(load_audio(audio), vad_filter=True)
         txt, srt, last_mark = [], [], -30
         for i, s in enumerate(segments, 1):
             if s.start - last_mark >= 30:
