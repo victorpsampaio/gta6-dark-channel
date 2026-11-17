@@ -72,11 +72,31 @@ def render_segment(src: Path, frames: int, out: Path, w: int, h: int, motion: st
 
 
 # ---------- legendas ----------
+def _norm(s):
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def restore_punctuation(words, text):
+    """O edge-tts devolve palavras sem pontuação: alinha com o texto do roteiro
+    para recuperar vírgulas/pontos (e quebrar a legenda no fim da frase)."""
+    tokens, j = text.split(), 0
+    out = []
+    for wd in words:
+        w = dict(wd)
+        nw = _norm(w["w"])
+        for k in range(j, min(j + 4, len(tokens))):
+            if _norm(tokens[k]) == nw and nw:
+                w["w"], j = tokens[k], k + 1
+                break
+        out.append(w)
+    return out
+
+
 def group_words(words, max_words=5, max_len=2.4):
     cues, cur = [], []
     for wd in words:
         cur.append(wd)
-        end_sentence = re.search(r"[.!?,;:]$", wd["w"])
+        end_sentence = re.search(r"[.!?]$", wd["w"]) or (re.search(r"[,;:]$", wd["w"]) and len(cur) >= 2)
         if len(cur) >= max_words or end_sentence or cur[-1]["end"] - cur[0]["start"] > max_len:
             cues.append(cur)
             cur = []
@@ -165,7 +185,7 @@ def main():
             start_f = end_f
         total_frames = scene_end_frame
 
-        for s, e, t in group_words(info["words"]):
+        for s, e, t in group_words(restore_punctuation(info["words"], scene["text"])):
             cues.append((t0 + s, t0 + e, t))
         if scene.get("lower_third"):
             lowers.append((t0, t0 + min(dur, 5), scene["lower_third"]))
